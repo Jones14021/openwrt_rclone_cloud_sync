@@ -8,9 +8,7 @@ CONF=$REPO/.local/rclone.conf
 DEST=$REPO/backup/current
 MONTHLY=$REPO/backup/monthly
 ACTION=${1:-run}
-MAX_DELETE=${MAX_DELETE:-100}
 case "$ACTION" in run|dry-run) ;; *) echo 'Usage: sh backup.sh [dry-run|run]' >&2; exit 2;; esac
-case "$MAX_DELETE" in ''|*[!0-9]*) echo 'MAX_DELETE must be a nonnegative integer' >&2; exit 2;; esac
 LOCK=/tmp/onedrive-usb-backup.lock
 mkdir "$LOCK" 2>/dev/null || { echo 'Backup already active or stale /tmp lock' >&2; exit 1; }
 PID= MONITOR=
@@ -31,7 +29,7 @@ command -v rclone >/dev/null 2>&1 || fail 'Install native rclone first'
 LIST=$(rclone --config "$CONF" lsf --max-depth 1 onedrive:) || fail 'Remote listing failed; no USB modifications'
 [ -n "$LIST" ] || fail 'OneDrive root empty; refusing to mirror'
 check || fail 'USB removed during remote listing'
-log "Starting $ACTION: OneDrive -> $DEST (max deletions $MAX_DELETE)"
+log "Starting $ACTION: OneDrive -> $DEST"
 if [ "$ACTION" = run ]; then
     mkdir -p "$DEST" "$MONTHLY" || fail 'Cannot create backup directories'
 fi
@@ -60,10 +58,10 @@ monitored() {
 }
 if [ "$ACTION" = dry-run ]; then
     monitored rclone --config "$CONF" sync onedrive: "$DEST" --dry-run --transfers 1 --checkers 2 \
-        --buffer-size 8M --multi-thread-streams 1 --max-delete "$MAX_DELETE" --modify-window 2s --log-level INFO
+        --buffer-size 8M --multi-thread-streams 1 --modify-window 2s --log-level INFO
 else
     monitored rclone --config "$CONF" sync onedrive: "$DEST" --delete-after --transfers 1 --checkers 2 \
-        --buffer-size 8M --multi-thread-streams 1 --max-delete "$MAX_DELETE" --modify-window 2s --log-level INFO
+        --buffer-size 8M --multi-thread-streams 1 --modify-window 2s --log-level INFO
 fi
 [ "$ACTION" = run ] || { log 'Dry run complete'; exit 0; }
 MONTH=$(date +%Y-%m)

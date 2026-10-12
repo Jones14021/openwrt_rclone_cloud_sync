@@ -64,7 +64,7 @@ sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run >> /tmp/onedr
 echo "exit=$?"
 ```
 
-If an interactive dry run does not redirect output, you will see it in the terminal. The daily cron log is in `/tmp` (RAM, lost on reboot) so a missing USB can never cause shell redirection to write backup logs to internal flash. You can inspect `backup/current/` and `backup/monthly/YYYY-MM/` on USB. The first download is full; subsequent syncs transfer changed files. On the first successful backup each month, an independent full USB-to-USB snapshot is created; only after publishing the new one is the previous month removed. `--max-delete 100` blocks unexpected mass deletions, **not changed/encrypted files**. A remote reported as empty causes an abort.
+If an interactive dry run does not redirect output, you will see it in the terminal. The daily cron log is in `/tmp` (RAM, lost on reboot) so a missing USB can never cause shell redirection to write backup logs to internal flash. You can inspect `backup/current/` and `backup/monthly/YYYY-MM/` on USB. The first download is full; subsequent syncs transfer changed files. On the first successful backup each month, an independent full USB-to-USB snapshot is created; only after publishing the new one is the previous month removed. A remote reported as empty causes an abort.
 
 ## 4. Modes and updating
 
