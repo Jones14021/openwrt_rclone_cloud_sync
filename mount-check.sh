@@ -9,3 +9,7 @@ awk -v m="$MOUNT" '
 ' /proc/mounts || { echo "USB not mounted read-write at $MOUNT; inspect /proc/mounts and /tmp/mountd" >&2; exit 1; }
 [ -d "$MOUNT/openwrt_rclone_cloud_sync/.git" ] || { echo 'Expected Git clone absent from USB' >&2; exit 1; }
 [ -f "$MOUNT/openwrt_rclone_cloud_sync/.local/volume-id" ] || { echo 'USB setup marker absent' >&2; exit 1; }
+
+echo "USB provisioned and mounted read-write at $MOUNT. Ready for router use."
+echo "Git repository openwrt_rclone_cloud_sync is present. Never commit or share .local/."
+echo "If you see this message on the router, the USB is ready for backup.sh to run."
