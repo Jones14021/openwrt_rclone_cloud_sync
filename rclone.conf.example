@@ -1,0 +1,6 @@
+# Deliberately invalid: this file is NOT a credential.
+# Run ./provision.sh on a browser-equipped computer to create rclone.conf.
+[onedrive]
+type = onedrive
+token = {"access_token":"INVALID","refresh_token":"INVALID","expiry":"2000-01-01T00:00:00Z"}
+drive_id = INVALID
