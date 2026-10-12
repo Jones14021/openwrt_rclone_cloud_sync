@@ -28,7 +28,7 @@ For Windows access to an ext4 disk, restore over the LAN from a carefully scoped
 
 ## 2. Install and clone
 
-On the GL admin page, open **Applications → Plug-ins**, update the package list, then search for and install **`git`** and **`rclone`**. Verify through SSH:
+On the GL admin page, open **Applications → Plug-ins**, update the package list, then search for and install **`git`**, **git-http** and **`rclone`**. Verify through SSH:
 
 ```sh
 git --version
