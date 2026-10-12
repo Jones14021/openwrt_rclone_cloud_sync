@@ -1,1 +1,5 @@
 .Trash*/
+.local/**
+!.local/.gitkeep
+backup/**
+!backup/.gitkeep
