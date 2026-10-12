@@ -1,104 +1,99 @@
-# GL-MT3000 OneDrive → USB (native rclone)
+# GL-MT3000 OneDrive → USB: native rclone, Git-on-USB
 
-This is the **native OpenWrt package** variant. There is no Dockerfile, container runtime, image, or Docker-specific configuration. A scheduled script mirrors OneDrive **down** to `current/` and stores one dated `monthly/YYYY-MM/` USB copy. Nothing is uploaded to OneDrive by the script. Data is **not encrypted** at rest.
+This directory is **the contents to commit to** `https://github.com/Jones14021/openwrt_rclone_cloud_sync`. It assumes a single USB partition, mounted automatically by **GL.iNet firmware 4.11.0** at `/tmp/mountd/disk1_part1`, containing a Git clone named `openwrt_rclone_cloud_sync`. Scripts execute **in place from USB**; `git pull` updates them without installing copies to router flash. This is a OneDrive-to-USB *download*, not an upload.
 
-## Behavior and ransomware limits
+## 1. USB, file system, and mounting
 
-- Every successful daily `rclone sync onedrive: current/` downloads changed/new files, deletes local files removed from OneDrive, and scans the file tree. Identical files are not downloaded again. `--max-delete 100` blocks runs with more than 100 deletions; it does **not** detect ransomware overwrites with the same names.
-- On the first *successful* run of a new calendar month, the script fully copies `current/` to a new independent monthly folder, then deletes the previous monthly folder. It does not refresh the month's snapshot afterward. Budget approximately two copies, and temporarily around three during rollover. If copying fails, the prior month is retained, and an incomplete staging directory is retried on the next successful run.
-- **Not ransomware-proof:** an infected Windows/macOS client can sync encrypted files to OneDrive, and the daily mirror will download them. An older monthly copy may save you **until it is rotated**, but if ransomware reaches OneDrive before the next monthly snapshot, that snapshot may capture the damage and delete the older copy. A compromised router, exposed SMB USB share, stolen USB drive, or someone with router root can alter/delete both copies. They share one physical disk; no immutable/offline backup exists here.
-- Keep another *offline/disconnected or genuinely immutable* backup with multiple restore points; verify restores. Do not export `monthly/` or `.onedrive-backup/` as writable SMB shares. For OneDrive restore/version history, review your account's Microsoft 365 features and retention separately; they are not provided by this project.
-
-## 1. Prepare GL-MT3000
-
-1. Use a USB drive formatted as ext4 (formatting destroys existing files), connected to the router's USB-A port. Configure **persistent mount by UUID** to `/mnt/onedrive-backup` using the fstab/USB storage facilities of *your installed firmware*. The router ships with customized OpenWrt; check what your particular GL firmware offers. Don't reflash firmware or mix official OpenWrt package feeds into GL vendor firmware just for this. Choose stable power and a large enough disk (roughly 2× cloud size; up to 3× at rollover).
-2. SSH into router as root, verify its time zone/NTP and **actual** package manager, available flash and USB mount:
-
-   ```sh
-   cat /etc/openwrt_release
-   command -v opkg || command -v apk
-   df -h /overlay /mnt/onedrive-backup
-   grep ' /mnt/onedrive-backup ' /proc/mounts
-   date
-   ```
-
-   Do not proceed if `/mnt/onedrive-backup` is merely an unmounted directory. You may use another *direct mountpoint* under `/mnt` by setting `BACKUP_ROOT=/mnt/yourmount` both manually and in cron, and adjusting provisioning paths.
-3. Install rclone from **that firmware's configured repositories**, not from a mismatched OpenWrt release. Pick *one* block after checking package availability and flash space:
-
-   ```sh
-   opkg update && opkg install rclone   # only on opkg-based firmware with rclone in its feed
-   # OR
-   apk update && apk add rclone       # only on apk-based firmware with rclone in its feed
-   rclone version
-   ```
-
-   If the package isn't available, stop rather than installing a random binary/build over the system. This native-only bundle cannot operate until a compatible rclone binary is installed.
-
-## 2. Provision OneDrive on a PC
-
-Use a recent rclone on a computer with a browser. In the extracted bundle run:
+GL firmware the default automount typically uses `/tmp/mountd/disk1_part1` (the drive contents are on USB, although its mountpoint directory is under RAM-backed `/tmp`). This README uses that exact location. Plug in the USB first and on the router check:
 
 ```sh
-chmod +x provision.sh
-./provision.sh ./rclone.conf
+ls -la /tmp/mountd/ /tmp/mountd/disk1_part1/
+grep ' /tmp/mountd/disk1_part1 ' /proc/mounts
+df -h /tmp/mountd/disk1_part1
 ```
 
-In rclone's wizard: new remote `n`, name **exactly** `onedrive`, storage `onedrive`, authorize with your browser, choose the intended personal/business drive, keep it and quit. The script tests access to `onedrive:` and sets file mode 600; it does **not** print or fabricate an OAuth token. `rclone.conf.example` contains invalid placeholders only. If you have a working `onedrive:` config already, use that file (locate it with `rclone config file`). This OAuth file holds sensitive tokens and must remain **writable** by router root so rclone can save refreshed tokens. You can choose the backend's documented read-only `access_scopes` during advanced configuration if supported by your account; default wizard permissions may include write access even though the backup script never writes to the remote. Test access before relying on it.
+**Never** create `/tmp/mountd/disk1_part1` manually or clone to it unless `/proc/mounts` confirms it is a real USB mount. If missing, reseat the drive, refresh the GL Network Storage page, inspect `logread | grep -i mount` and `ls /dev/sd*`, then fix GL's own storage/automount facility. This package relies on the existing GL hotplug automount, waits for no new storage itself, and never tries a second manual mount (which can conflict with GL's Samba/WebDAV mounts). `mount-check.sh` insists on a RW `/dev/sd*` partition mounted at this path, a `.git` clone and a provisioning marker. If unavailable at scheduled time, cron skips the run safely; it does not catch up later. The assumption of one USB makes GL's `disk1_part1` name predictable **for this setup**, but this name is not a physical-drive identifier; check it again after firmware changes.
 
-On the router, only *after confirming that the USB is mounted*:
+**Use ext4 if possible.** Reformat on your Linux PC *before cloning* (formatting destroys existing contents), and ensure this GL firmware can mount ext4. FAT32 technically allows a repository and backups of small files using `sh script.sh`, but it has no real per-file Unix mode/owner protection, a single-file limit just below 4 GiB, coarse timestamps, no ext4-style journal, and the OAuth token is exposed to anyone who can read the drive. The code accepts FAT32 so you can test, but do **not** rely on the shown 30 GB FAT stick for important backups, especially if OneDrive contains large files. The approximately 30 GB stick can hold at most ~15 GB cloud data for `current` plus `monthly`, and rollover may require **temporarily three full copies** (~10 GB cloud data, before overhead). `--modify-window 2s` helps with FAT timestamp granularity, but cannot address its file-size or permission limits. For Windows access to an ext4 disk, restore over the LAN from a carefully scoped share or via an ext4-capable Linux host; don't expose the secret folder.
+
+## 2. Install and clone
+
+On the GL admin page: **Applications → Plug-ins → Update**, then search for and install **`git`** and **`rclone`**. This firmware is a customized OpenWrt 21.02 snapshot; use its own Plug-ins UI rather than mixing release feeds. Verify through SSH: `git --version; rclone version`. If a package is not offered, do not assume it was installed; stop and diagnose. Packages, their configuration, and the cron entry necessarily reside on router flash; *scripts, Git checkout, OAuth token, logs of actual data, and all backup files* stay on USB (transient run logs/locks use `/tmp` RAM).
+
+After the files in this bundle have been committed to the stated GitHub repository, put the empty, mounted drive on your Linux computer and **clone into its root** (replace the mount path with your real Linux mountpoint):
 
 ```sh
-mkdir -p /mnt/onedrive-backup/.onedrive-backup
-: > /mnt/onedrive-backup/.onedrive-backup-volume
-chmod 700 /mnt/onedrive-backup/.onedrive-backup
+USB=/run/media/$USER/INTENSO  # example only: inspect `findmnt` before running
+findmnt "$USB"
+git clone https://github.com/Jones14021/openwrt_rclone_cloud_sync "$USB/openwrt_rclone_cloud_sync"
+cd "$USB/openwrt_rclone_cloud_sync"
+# Only needed on FAT32 / filesystems that cannot retain executable bits:
+git config core.filemode false
 ```
 
-From the PC, replace the example address with your router's real LAN address:
+Do not blindly use the example Linux mount path, which differs across distros. Git's `core.filemode false` only suppresses false mode changes in Git; it does *not* secure token files on FAT. All runtime paths are anchored to the router's USB mount path above; there are no copies in `/root` or `/mnt`. Make sure `.gitignore` includes `.local/` and `backup/`; **never commit** `.local/rclone.conf` or backed-up data.
+
+## 3. Provision from Linux and router
+
+On the Linux host, while USB is attached and you have a browser and rclone installed:
 
 ```sh
-scp ./rclone.conf root@192.168.8.1:/mnt/onedrive-backup/.onedrive-backup/rclone.conf
-scp ./backup.sh root@192.168.8.1:/root/onedrive-backup.sh
+cd "$USB/openwrt_rclone_cloud_sync"
+sh ./setup.sh host
 ```
 
-Back on the router:
+The wizard creates a remote named **exactly** `onedrive` in the untracked `.local/rclone.conf`, performs interactive browser authentication and verifies a listing. It also creates a USB-only marker `.local/volume-id`. If you already have an rclone remote under another name, import its credentials under `onedrive` using rclone on the Linux host; do not edit JSON tokens by hand. See `rclone.conf.example` for an intentionally invalid example. Avoid backing up your own tokens into the public repo. Safely eject the USB from Linux, insert in router, wait for GL automount, and in SSH:
 
 ```sh
-chmod 600 /mnt/onedrive-backup/.onedrive-backup/rclone.conf
-chmod 700 /root/onedrive-backup.sh
-rclone --config /mnt/onedrive-backup/.onedrive-backup/rclone.conf lsf onedrive:
+sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/mount-check.sh
+sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/setup.sh router
+sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh dry-run
 ```
 
-Keep the router's admin interface and SSH off the public internet; keep the USB config directory out of file shares. The marker guards against writing to an unmounted mountpoint; it does not authenticate a physical drive.
-
-## 3. Test, schedule, monitor
-
-Run **dry-run** first, read the proposed transfers/deletions, then run the real download:
-
-```sh
-/root/onedrive-backup.sh dry-run > /tmp/onedrive-backup.log 2>&1
-echo "dry-run exit=$?"
-tail -n 50 /tmp/onedrive-backup.log
-/root/onedrive-backup.sh run >> /tmp/onedrive-backup.log 2>&1
-echo "run exit=$?"
-ls -la /mnt/onedrive-backup/current /mnt/onedrive-backup/monthly
-```
-
-Note: a dry-run still contacts OneDrive and may refresh the token stored in the config; it does not touch `current/` or `monthly/`. `/tmp` logs are in RAM, not a potentially unmounted USB directory, and disappear after reboot. Do not redirect the cron log to `/mnt/onedrive-backup/backup.log`: the shell opens redirections **before** the script checks the mount, risking writes to the router's internal flash.
-
-In the GL admin UI open **Advanced Settings → LuCI → System → Scheduled Tasks** and insert a daily 03:15 task (end with a newline):
+`setup.sh router` verifies the mount, Git and rclone, lists OneDrive, and idempotently appends **one** daily 03:15 cron entry to `/etc/crontabs/root` before restarting cron. That's the minimal unavoidable router-local configuration; it does not copy or install any project code or credentials there. You can instead place the same cron line manually in LuCI **System → Scheduled Tasks**. Do not put crontab syntax in **System → Startup → Local Startup**. Its schedule is:
 
 ```cron
-15 3 * * * /root/onedrive-backup.sh run >> /tmp/onedrive-backup.log 2>&1
+15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run >> /tmp/onedrive-usb-backup.log 2>&1
 ```
 
-Save and on the router use `/etc/init.d/cron enable; /etc/init.d/cron restart`. **LuCI → System → Startup → Local Startup is NOT where you paste cron syntax.** If you want a boot-time catch-up, use a separate startup command that waits for USB, internet, and NTP; this bundle intentionally does not auto-start before those prerequisites. A powered-off router misses a cron run: check logs and run manually when it returns. Recheck rclone, cron, the USB mount, and the script after firmware upgrades.
+Run the real backup only after reviewing the dry-run log:
 
-For legitimate bulk deletions above 100, investigate first and temporarily run `MAX_DELETE=500 /root/onedrive-backup.sh dry-run`, then `MAX_DELETE=500 /root/onedrive-backup.sh run`. This limit cannot spot mass encryption of existing files; do not treat a successful job as a clean bill of health. If you detect ransomware, **stop the cron job immediately and preserve the USB disk and monthly snapshot** before further runs. Restore sample files to a clean computer only after identifying when infection started. Do not open unknown executables from compromised backups.
+```sh
+tail -n 60 /tmp/onedrive-usb-backup.log
+sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run >> /tmp/onedrive-usb-backup.log 2>&1
+echo "exit=$?"
+```
 
-## 4. Restore and further protection
+If an interactive dry run does not redirect output, you will see it in the terminal. The daily cron log is in `/tmp` (RAM, lost on reboot) so a missing USB can never cause shell redirection to write backup logs to internal flash. You can inspect `backup/current/` and `backup/monthly/YYYY-MM/` on USB. The first download is full; subsequent syncs transfer changed files. On the first successful backup each month, an independent full USB-to-USB snapshot is created; only after publishing the new one is the previous month removed. `--max-delete 100` blocks unexpected mass deletions, **not changed/encrypted files**. A remote reported as empty causes an abort.
 
-`current/` is your latest mirror; `monthly/YYYY-MM/` is a point-in-time copy from the first successful run of that month. Copy files from the chosen folder to a **clean separate computer**, not back into OneDrive automatically. Check both folders regularly and test that restored documents open. Monthly copy is a **full local USB-to-USB copy**, not incremental, so allow time for it to finish; the first cloud download is also substantial. An unexpected disk-full error leaves `current/` potentially incomplete while the previous monthly snapshot survives. A failed `sync` can likewise partially change `current/`.
+## 4. Modes and updating
 
-The USB remains online and writable by the router. To protect against ransomware and router compromise, maintain a separate offline drive that is disconnected except during controlled backup, or an independent immutable versioned backup service. Microsoft 365 subscribers may also have OneDrive-wide restore for changes within the preceding 30 days; confirm availability for your plan and account. Do not mistake ext4 permissions or `chattr +i` under a root-run script for protection against an attacker who controls router root.
+| Path in the repository | Ext4 mode | Why |
+|---|---|---|
+| `README.md`, `.gitignore`, `rclone.conf.example` | `0644` | Public project text; example is not a token. |
+| `setup.sh`, `backup.sh`, `mount-check.sh` | `0755` | Conventional tracked executable scripts; `sh file.sh` works even without executable bit. |
+| `.local/`, `backup/` | `0700` directories | Non-public state and backups, created by scripts with umask `077`. |
+| `.local/rclone.conf`, `.local/volume-id` | `0600` | Real OAuth credentials and local USB marker. |
+| `backup/current/`, `backup/monthly/` and their files | `0700` dirs / `0600` files where possible | Locally downloaded data; exact mode can vary for recovered metadata. |
 
-References: [OpenWrt cron](https://openwrt.org/docs/guide-user/base-system/cron), [rclone sync](https://rclone.org/commands/rclone_sync/), [OneDrive remote and OAuth scopes](https://rclone.org/onedrive/), [CISA ransomware backup guidance](https://www.cisa.gov/stopransomware/ransomware-guide), [OneDrive restore](https://support.microsoft.com/en-us/onedrive/restore-your-onedrive), [GL-MT3000 hardware](https://openwrt.org/toh/gl.inet/gl-mt3000).
+On ext4, set script modes in your local Git repository before commit (`chmod 755 *.sh; git add --chmod=+x *.sh`) and check `git ls-files -s`; `setup.sh host` attempts `0600` on the config. On FAT32, `chmod` cannot give individual files effective independent permissions: visible modes come from the mount options. **Do not treat a displayed `-rw-------` as an access-control guarantee if the USB is removed and read elsewhere.** Keep Samba/WebDAV WAN access off, avoid sharing USB root or `.local`, and consider disabling the file services altogether. The screenshot has LAN Samba and WebDAV enabled; verify shares/users explicitly. This setup does not alter those settings.
+
+To update, when no backup is running:
+
+```sh
+cd /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync
+sh ./mount-check.sh
+git status --short
+git pull --ff-only
+```
+
+The next cron run uses the updated USB scripts; no reinstallation needed. Never `git pull` while a backup runs, and never put `.local/` or `backup/` into version control. If the repo is on FAT, `git config core.filemode false` on the router checkout can quiet spurious status changes. Pull only trusted changes: these scripts run as router root. If updating on Linux, safely eject before inserting in router.
+
+## 5. Unplugging, power loss, and recovery
+
+- Before intentional removal, ensure no backup is running, run `sync` on the router and use GL's **Eject** control shown in Network Storage. Never pull it during a `git pull` or `rclone` run.
+- On a surprise unplug, `mount-check.sh` fails at start and the job polls `/proc/mounts` every two seconds while rclone syncs or a monthly snapshot copies. The script attempts to stop the active process and checks the mount again before rotation. That *reduces* the window in which the auto-unmounted path might receive writes into `/tmp` RAM; it cannot eliminate all races. The output may be partial and the USB filesystem may need repair on a Linux PC. Check `df`, `grep ... /proc/mounts`, logs, and mount state before retrying. USB on `/tmp/mountd` prevents unintended writes to persistent router flash in this design; filling RAM can still disrupt the router if an unplug happens in a narrow race.
+- A power loss cannot be fixed in software. A sync may have partly changed `backup/current/`; `.new-YYYY-MM/` may contain an incomplete monthly snapshot. The *previous published month* is left alone until the new month is fully copied and renamed; after power recovery and filesystem checking, rerun the job. If failure happens during deletion of the old month, a partly deleted old month may remain alongside the newly published month. No snapshot is guaranteed on the very first run before it finishes. Ext4 with a clean unmount and reliable power is preferable to FAT for recovery.
+- For ransomware, the current mirror can import encrypted files, and a single monthly snapshot can age out. This is not immutable, offline or offsite protection. Preserve the USB and stop cron on suspicion; maintain a separate disconnected or truly immutable versioned backup. Restore to a clean computer, not automatically back to OneDrive.
+
+References: [GL Network Storage](https://docs.gl-inet.com/router/en/4/interface_guide/network_storage/), [GL Plug-ins](https://docs.gl-inet.com/router/en/4/interface_guide/plugins/), [GL automount discussion](https://forum.gl-inet.com/t/why-is-external-storage-device-auto-mounted-at-tmp-mountd-disk1-part1/35177), [Git filemode](https://git-scm.com/docs/git-config), [rclone sync](https://rclone.org/commands/rclone_sync/), [OpenWrt cron](https://openwrt.org/docs/guide-user/base-system/cron).
