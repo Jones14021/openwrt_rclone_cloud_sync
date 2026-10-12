@@ -18,6 +18,8 @@ If the mount is missing, reseat the drive, refresh the GL Network Storage page, 
 
 `mount-check.sh` insists on a read-write `/dev/sd*` partition mounted at this path, a `.git` clone, and a provisioning marker. If the USB is unavailable at the scheduled time, cron skips the run safely; it does not catch up later. The assumption of one USB makes GL's `disk1_part1` name predictable **for this setup**, but the name is not a physical-drive identifier. Check it again after firmware changes.
 
+>Tip: Use exFAT if you want to not bother with file permissions and potentially use the disk on Windows systems for recovering data.
+
 **Use ext4 if possible.** Reformat on your Linux PC *before cloning*—formatting destroys existing contents—and ensure this GL firmware can mount ext4. FAT32 technically allows a repository and backups of small files using `sh script.sh`, but it has no real per-file Unix mode/owner protection, a single-file limit just below 4 GiB, coarse timestamps, and no ext4-style journal. The OAuth token is exposed to anyone who can read the drive.
 
 The code accepts FAT32 so you can test, but do **not** rely on the shown 30 GB FAT stick for important backups, especially if OneDrive contains large files. The approximately 30 GB stick can hold at most around 15 GB of cloud data for `current` plus `monthly`; rollover may require **temporarily three full copies**—around 10 GB of cloud data before overhead. `--modify-window 2s` helps with FAT timestamp granularity but cannot address its file-size or permission limits.
