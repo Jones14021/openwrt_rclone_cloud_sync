@@ -28,21 +28,19 @@ For Windows access to an ext4 disk, restore over the LAN from a carefully scoped
 
 ## 2. Install and clone
 
-On the GL admin page, open **Applications → Plug-ins**, update the package list, then search for and install **`git`**, **git-http** and **`rclone`**. Verify through SSH:
+On the GL admin page, open **Applications → Plug-ins**, update the package list, then install **`git`** and **`git-http`**. `git-http` is needed for `git fetch` and `git pull` from the repository's HTTPS URL. Verify over SSH:
 
 ```sh
 git --version
-rclone version
+git fetch --help >/dev/null
 ```
 
-If either package is not offered or installation fails, do not assume it was installed; stop and diagnose.
+You do **not** need the router's packaged `rclone` for this project. The package on this GL-MT3000 was v1.59.1, and it listed OneDrive but failed to read files with `unauthenticated: Unauthenticated`. Rclone subsequently fixed OneDrive download authentication; see the [download-failure report and identified fix](https://forum.rclone.org/t/onedrive-broken-but-only-for-get/45705), [fix commit `aee8d90`](https://github.com/rclone/rclone/commit/aee8d90), and [related OneDrive issue #7597](https://github.com/rclone/rclone/issues/7597). These are the verifiable upstream references; do not assume that merely listing OneDrive proves downloading works.
 
-Packages, their configuration, and the manually added cron entry necessarily reside on the router. The project scripts, Git checkout, OAuth token, and all backup files stay on USB. Transient run logs and locks use `/tmp` RAM.
-
-After the files in this project have been committed to the GitHub repository, put the empty, mounted drive on your Linux computer and **clone into its root**. Replace the example mount path with your real Linux mountpoint:
+After committing this project's files to the Git repository, mount the empty USB drive on your Linux computer and clone into its root. Replace the example Linux mount path with your actual one:
 
 ```sh
-USB=/run/media/$USER/INTENSO  # Example only: inspect your mount first
+USB=/run/media/$USER/INTENSO  # Example only
 findmnt "$USB"
 
 git clone [https://github.com/Jones14021/openwrt_rclone_cloud_sync](https://github.com/Jones14021/openwrt_rclone_cloud_sync) \
@@ -50,13 +48,23 @@ git clone [https://github.com/Jones14021/openwrt_rclone_cloud_sync](https://gith
 
 cd "$USB/openwrt_rclone_cloud_sync"
 
-# Only needed on FAT32 or a filesystem that cannot retain executable bits:
+# Only needed for FAT32 or another filesystem without executable-bit support:
 git config core.filemode false
 ```
 
-Do not blindly use the example Linux mount path, which differs across distributions. Git's `core.filemode false` only suppresses false mode changes in Git; it does *not* secure token files on FAT.
+Install `curl`, `gpg`, `sha256sum`, `unzip`, `mktemp`, and a host-compatible `rclone` **on the Linux computer**, then run:
 
-All runtime paths are anchored to the router's USB mount path above. There are no copies in `/root` or `/mnt`. Ensure `.gitignore` includes `.local/` and `backup/`. **Never commit** `.local/rclone.conf` or backed-up data.
+```sh
+sh ./setup.sh host
+```
+
+The script obtains the latest stable release number from the [official rclone downloads](https://downloads.rclone.org/), downloads **Linux ARM64** rclone for the router—not for your Linux computer—and verifies the archive against rclone's **PGP-signed SHA256SUMS** before placing the executable at `openwrt_rclone_cloud_sync/.local/bin/rclone` on USB. It does not replace `/usr/bin/rclone` or install a binary into router flash. Rclone documents its [release-signing procedure](https://rclone.org/release_signing/).
+
+The same host setup creates or checks `.local/rclone.conf` using the Linux computer's own rclone. Router setup later runs the USB ARM64 binary, lists OneDrive, and interactively asks for the relative path of a **non-empty file**. It reads the first 64 bytes into `/dev/null`, without saving that file to USB. This catches download failures that a listing-only check misses.
+
+An executable on USB may fail if GL mounted the filesystem with `noexec`; check the mount options if `setup.sh router` reports that it cannot execute. FAT32 `chmod` does not supply real per-file permissions for `.local/rclone.conf`.
+
+Router packages, their configuration, and the cron entry you add manually necessarily reside on the router. The project checkout, downloaded ARM64 binary, OAuth token, and backup files stay on USB. Transient run logs and locks use `/tmp` RAM. Ensure `.gitignore` excludes `.local/` and `backup/`; **never commit** `.local/rclone.conf` or backed-up data. Rerunning `sh ./setup.sh host` later downloads and verifies the then-current stable ARM64 release.
 
 ## 3. Provision on Linux
 

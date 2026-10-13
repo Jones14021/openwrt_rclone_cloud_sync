@@ -3,6 +3,8 @@
 set -eu
 umask 077
 REPO=/tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync
+PATH="$REPO/.local/bin:$PATH"
+export PATH
 MOUNT=/tmp/mountd/disk1_part1
 CONF=$REPO/.local/rclone.conf
 DEST=$REPO/backup/current
@@ -21,6 +23,7 @@ trap 'cleanup' 0
 trap 'exit 1' 1 2 3 15
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"; }
 fail() { log "ERROR: $*" >&2; exit 1; }
+[ -f "$REPO/.local/bin/rclone" ] || fail 'USB rclone binary missing'
 check() { sh "$REPO/mount-check.sh" >/dev/null 2>&1; }
 check || fail 'USB not mounted correctly; will not start'
 [ -r "$CONF" ] && [ -w "$CONF" ] || fail 'Missing/unwritable OAuth config on USB'
