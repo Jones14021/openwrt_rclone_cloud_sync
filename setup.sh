@@ -45,6 +45,7 @@ case "${1:-}" in
                 --proto '=https' --proto-redir '=https' \
                 'https://downloads.rclone.org/version.txt'
         )
+        VERSION=${VERSION#rclone }
 
         case "$VERSION" in
             v[0-9]*)
