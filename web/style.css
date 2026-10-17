@@ -1,0 +1,13 @@
+:root { color-scheme: light; --ink: #18322d; --muted: #63746e; --line: #c8d7ce; --paper: #f5f1e7; --accent: #d95335; --panel: #fffdf7; }
+* { box-sizing: border-box; }
+body { margin: 0; background: repeating-linear-gradient(0deg, #edf1e9, #edf1e9 2px, #e7eee4 2px, #e7eee4 4px); color: var(--ink); font-family: Georgia, serif; }
+main { max-width: 1060px; margin: 0 auto; padding: 48px 24px 72px; }
+header { border-bottom: 4px solid var(--ink); padding-bottom: 24px; }
+h1 { font-size: 42px; margin: 0; letter-spacing: 0; } h2 { margin: 0; font-size: 20px; } .eyebrow { color: var(--accent); font: 700 12px/1.2 monospace; letter-spacing: .08em; text-transform: uppercase; }
+#summary, .error, span, button, .files, pre, nav { font-family: ui-monospace, monospace; } #summary { color: var(--muted); }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-left: 1px solid var(--line); margin: 26px 0; } .metrics div { border: 1px solid var(--line); border-left: 0; background: var(--panel); min-height: 100px; padding: 15px; } span { display: block; color: var(--muted); font-size: 12px; } strong { display: block; margin-top: 10px; font-size: 14px; overflow-wrap: anywhere; }
+.panel { background: var(--panel); border: 1px solid var(--line); margin-top: 22px; } .panel-heading { align-items: center; border-bottom: 1px solid var(--line); display: flex; gap: 8px; padding: 12px 14px; } .panel-heading h2 { margin-right: auto; }
+button { background: transparent; border: 1px solid var(--ink); color: var(--ink); cursor: pointer; padding: 7px 10px; } button:hover { background: var(--ink); color: var(--paper); }
+nav { border-bottom: 1px solid var(--line); font-size: 12px; padding: 10px 14px; } nav button { border: 0; padding: 0; text-decoration: underline; }
+.files { min-height: 75px; } .file { display: grid; grid-template-columns: minmax(150px, 1fr) 120px 180px; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #e5e2d7; font-size: 13px; } .file:last-child { border-bottom: 0; } .file a { color: inherit; overflow-wrap: anywhere; } pre { margin: 0; max-height: 430px; overflow: auto; padding: 14px; font-size: 12px; white-space: pre-wrap; }
+.error { background: #f8ddd2; border-left: 4px solid var(--accent); padding: 12px; } @media (max-width: 700px) { main { padding: 28px 14px; } h1 { font-size: 32px; } .metrics { grid-template-columns: repeat(2, 1fr); } .file { grid-template-columns: minmax(110px, 1fr) 70px; } .file time { display: none; } }

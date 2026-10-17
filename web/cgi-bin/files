@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+REPO=${REPO:-/tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync}
+QUERY=${QUERY_STRING:-}
+value() { printf '%s' "$QUERY" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n 1 | sed 's/%2[Ff]/\//g; s/%20/ /g'; }
+ROOT=$(value root)
+PATH_PART=$(value path)
+DOWNLOAD=$(value download)
+if ! sh "$REPO/mount-check.sh" >/dev/null 2>&1; then
+    printf 'Status: 503 Service Unavailable\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n{"error":"USB unavailable"}\n'
+    exit 0
+fi
+case "$ROOT" in current|monthly) ;; *) ROOT=current;; esac
+case "$PATH_PART" in *..*|/*) BAD=1;; *) BAD=;; esac
+case "$DOWNLOAD" in *..*|/*) BAD=1;; esac
+BASE=$REPO/backup/$ROOT
+TARGET=$BASE${PATH_PART:+/$PATH_PART}
+[ -z "${BAD:-}" ] && [ -d "$BASE" ] && [ ! -L "$TARGET" ] || { printf 'Status: 404 Not Found\r\nContent-Type: text/plain\r\n\r\nNot found\n'; exit 0; }
+if [ -n "$DOWNLOAD" ]; then
+    FILE=$TARGET/$DOWNLOAD
+    [ -f "$FILE" ] && [ ! -L "$FILE" ] || { printf 'Status: 404 Not Found\r\nContent-Type: text/plain\r\n\r\nNot found\n'; exit 0; }
+    printf 'Content-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="download"\r\n\r\n'
+    cat "$FILE"
+    exit 0
+fi
+printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n{"entries":['
+FIRST=1
+COUNT=0
+for FILE in "$TARGET"/* "$TARGET"/.[!.]*; do
+    [ -e "$FILE" ] && [ ! -L "$FILE" ] || continue
+    [ "$COUNT" -lt 500 ] || break
+    NAME=${FILE##*/}
+    case "$NAME" in *'"'*|*\\*) continue;; esac
+    [ "$FIRST" -eq 1 ] || printf ','; FIRST=0
+    if [ -d "$FILE" ]; then TYPE=true; SIZE=0; else TYPE=false; SIZE=$(wc -c < "$FILE"); fi
+    printf '{"name":"%s","directory":%s,"size":%s,"modified":"%s"}' "$NAME" "$TYPE" "$SIZE" "$(date -r "$FILE" '+%Y-%m-%d %H:%M')"
+    COUNT=$((COUNT + 1))
+done
+printf ']}\n'

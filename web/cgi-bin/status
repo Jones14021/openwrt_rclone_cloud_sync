@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+REPO=${REPO:-/tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync}
+STATE=/tmp/onedrive-backup/status.json
+printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n'
+if ! sh "$REPO/mount-check.sh" >/dev/null 2>&1; then
+    printf '%s\n' '{"phase":"unavailable","usb_mounted":false,"error":"USB unavailable"}'
+    exit 0
+fi
+if [ -r "$STATE" ]; then
+    PID=$(sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' "$STATE" | head -n 1)
+    PHASE=$(sed -n 's/.*"phase":"\([^"]*\)".*/\1/p' "$STATE" | head -n 1)
+    case "$PHASE" in checking|checking\ OneDrive|downloading|creating\ monthly\ snapshot) ACTIVE=1;; *) ACTIVE=;; esac
+    if [ -n "${ACTIVE:-}" ] && { [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; }; then
+        printf '%s\n' '{"phase":"interrupted","usb_mounted":true,"error":"Previous run was interrupted or its state is stale"}'
+    else
+        cat "$STATE"
+    fi
+else
+    printf '%s\n' '{"phase":"idle","usb_mounted":true}'
+fi

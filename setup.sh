@@ -4,7 +4,7 @@
 set -eu
 umask 077
 
-REPO=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
+REPO=$(CDPATH='' && export CDPATH && cd "$(dirname "$0")" && pwd -P)
 RCLONE_BIN="$REPO/.local/bin/rclone"
 
 case "$(basename "$REPO")" in
@@ -240,7 +240,7 @@ case "${1:-}" in
         echo 'OneDrive listing and file-read tests passed.'
         echo 'No test file was saved to USB.'
 
-        LINE='15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run >> /tmp/onedrive-usb-backup.log 2>&1'
+        LINE='15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run'
 
         if [ -r /etc/crontabs/root ] &&
            grep -Fqx "$LINE" /etc/crontabs/root; then

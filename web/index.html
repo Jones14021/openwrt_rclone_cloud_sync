@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OneDrive Backup</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">USB backup</p><h1>OneDrive Backup</h1><p id="summary">Loading status...</p></header>
+    <section class="metrics" aria-label="Backup status">
+      <div><span>Phase</span><strong id="phase">Unknown</strong></div>
+      <div><span>Run</span><strong id="started">-</strong></div>
+      <div><span>Last success</span><strong id="success">-</strong></div>
+      <div><span>USB storage</span><strong id="storage">-</strong></div>
+    </section>
+    <p id="error" class="error" hidden></p>
+    <section class="panel"><div class="panel-heading"><h2>Backup Files</h2><button id="root-current" type="button">Current</button><button id="root-monthly" type="button">Monthly</button></div><nav id="breadcrumbs" aria-label="Path"></nav><div id="files" class="files">Loading...</div></section>
+    <section class="panel"><div class="panel-heading"><h2>Recent Log</h2><button id="refresh-log" type="button" aria-label="Refresh log">Refresh</button></div><pre id="log">Loading...</pre></section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

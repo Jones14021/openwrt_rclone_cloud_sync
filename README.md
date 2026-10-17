@@ -100,7 +100,7 @@ It also checks `/etc/crontabs/root` for the *exact* cron entry shown below. If p
 In the GL admin interface, open **Advanced Settings → LuCI → System → Scheduled Tasks**. Add this single line for a daily run at 03:15, and save it:
 
 ```cron
-15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run >> /tmp/onedrive-usb-backup.log 2>&1
+15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run
 ```
 
 Do **not** put that crontab line in **System → Startup → Local Startup**.
@@ -127,8 +127,7 @@ A powered-off router misses its scheduled run. When it comes back, inspect the l
 Review the dry run before starting the real download:
 
 ```sh
-sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh dry-run \
-    > /tmp/onedrive-usb-backup.log 2>&1
+sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh dry-run
 
 echo "dry-run exit=$?"
 tail -n 60 /tmp/onedrive-usb-backup.log
@@ -137,8 +136,7 @@ tail -n 60 /tmp/onedrive-usb-backup.log
 Then run the backup:
 
 ```sh
-sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run \
-    >> /tmp/onedrive-usb-backup.log 2>&1
+sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run
 
 echo "run exit=$?"
 ```
@@ -149,7 +147,66 @@ Inspect `backup/current/` and `backup/monthly/YYYY-MM/` on the USB. The first On
 
 A remote reported as empty causes the backup to abort.
 
-## 7. File modes and updates
+## 7. Read-only backup dashboard
+
+The optional dashboard is a separate uHTTPd instance. It never starts a backup,
+edits configuration, uploads data, or exposes the checkout root. It reads only
+the published job state, the bounded RAM log, and `backup/current/` plus
+`backup/monthly/`.
+
+Install uHTTPd on the router, then create a dashboard-specific credential on
+the USB. Do not reuse the GL.iNet administrator password:
+
+```sh
+opkg update
+opkg install uhttpd
+umask 077
+printf '%s\n' 'dashboard:choose-a-long-unique-password' \
+    > /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/.local/web-auth
+chmod 600 /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/.local/web-auth
+```
+
+For initial testing, bind only to loopback and use an SSH tunnel from a trusted
+computer:
+
+```sh
+sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-start.sh
+ssh -L 8443:127.0.0.1:8443 root@192.168.5.1
+```
+
+Open `http://127.0.0.1:8443/` in the computer's browser. `web-start.sh` uses
+loopback by default and refuses to run without credentials. Stop it with
+`kill "$(cat /tmp/onedrive-backup-dashboard.pid)"`.
+
+For LAN deployment, first create a certificate and key using your router's
+normal TLS procedure. Start with a specific LAN listener and the two paths;
+also add a firewall rule that excludes guest and WAN zones:
+
+```sh
+WEB_LISTEN=192.168.5.1:8443 \
+WEB_CERT=/path/to/cert.pem WEB_KEY=/path/to/key.pem \
+    sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-start.sh
+```
+
+This form serves HTTPS, so use `https://192.168.5.1:8443/`. Do not expose an
+unencrypted dashboard listener beyond loopback. To start it after boot, add one
+non-respawning line to `/etc/rc.local` before `exit 0`:
+
+```sh
+/bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-start.sh >/tmp/onedrive-dashboard.log 2>&1
+```
+
+When the USB is absent the command fails closed and no dashboard is served.
+The dashboard's state is written atomically at job transitions; successful
+completion is retained on USB at `.local/last-success.json`. The RAM log is
+capped at 128 KiB by `backup.sh`; use the cron command below without output
+redirection so no output bypasses that cap.
+
+```cron
+15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run
+```
+
+## 8. File modes and updates
 
 | Path in the repository | Ext4 mode | Purpose |
 |---|---:|---|
@@ -184,7 +241,7 @@ The next cron run uses the updated USB scripts; no project-file installation is 
 
 If updating the USB on Linux instead, safely eject it before reinserting it into the router.
 
-## 8. Removal, power loss, and recovery
+## 9. Removal, power loss, and recovery
 
 - Before intentional removal, ensure no backup or `git pull` is running, run `sync` on the router, and use GL's **Eject** control in Network Storage.
 - If USB disappears during a run, the script checks the mount and polls `/proc/mounts` every two seconds during rclone sync and monthly copying. It attempts to stop the active operation and checks again before rotation. This reduces, but **cannot eliminate**, the race in which an auto-unmounted path might receive writes into `/tmp` RAM.

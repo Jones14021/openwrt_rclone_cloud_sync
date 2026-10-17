@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+printf 'Content-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\n\r\n'
+[ -r /tmp/onedrive-usb-backup.log ] && tail -c 65536 /tmp/onedrive-usb-backup.log | tail -n 200 || printf '%s\n' 'No backup log is available yet.'

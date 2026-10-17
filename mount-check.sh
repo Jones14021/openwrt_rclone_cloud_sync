@@ -1,14 +1,22 @@
 #!/bin/sh
 # Exit 0 only when GL.iNet has mounted the one USB partition at this exact path.
 set -eu
-MOUNT=/tmp/mountd/disk1_part1
+MOUNT=${MOUNT:-/tmp/mountd/disk1_part1}
+REPO=${REPO:-$MOUNT/openwrt_rclone_cloud_sync}
+# This bypass exists solely for the isolated host fixture; production callers do
+# not set it and must continue to prove that the path is a writable USB mount.
+if [ "${MOUNT_CHECK_TEST:-}" = 1 ]; then
+    [ -d "$REPO/.git" ] || { echo 'Expected Git clone absent from test fixture' >&2; exit 1; }
+    [ -f "$REPO/.local/volume-id" ] || { echo 'USB setup marker absent from test fixture' >&2; exit 1; }
+    exit 0
+fi
 # GL firmware mounts USB as /dev/sdXN. No mounting or creation is attempted here.
 awk -v m="$MOUNT" '
     $2==m && $1 ~ /^\/dev\/sd[a-z]+[0-9]+$/ && $4 ~ /(^|,)rw(,|$)/ { ok=1 }
     END { exit !ok }
 ' /proc/mounts || { echo "USB not mounted read-write at $MOUNT; inspect /proc/mounts and /tmp/mountd" >&2; exit 1; }
-[ -d "$MOUNT/openwrt_rclone_cloud_sync/.git" ] || { echo 'Expected Git clone absent from USB' >&2; exit 1; }
-[ -f "$MOUNT/openwrt_rclone_cloud_sync/.local/volume-id" ] || { echo 'USB setup marker absent' >&2; exit 1; }
+[ -d "$REPO/.git" ] || { echo 'Expected Git clone absent from USB' >&2; exit 1; }
+[ -f "$REPO/.local/volume-id" ] || { echo 'USB setup marker absent' >&2; exit 1; }
 
 echo "USB provisioned and mounted read-write at $MOUNT. Ready for router use."
 echo "Git repository openwrt_rclone_cloud_sync is present. Never commit or share .local/."
