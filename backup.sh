@@ -105,6 +105,9 @@ monitored() {
     wait "$MONITOR" 2>/dev/null || :
     MONITOR=
     check || fail 'USB missing after active operation; backup may be partial'
+    if [ "$RESULT" -ne 0 ] && tail -n 200 "$LOG" | grep -Fq 'no space left on device'; then
+        fail 'USB storage is full; backup stopped before completion'
+    fi
     [ "$RESULT" -eq 0 ] || fail 'Active operation failed or was stopped; backup may be partial'
 }
 if [ "$ACTION" = dry-run ]; then

@@ -13,7 +13,13 @@ if [ -r "$STATE" ]; then
     PID=$(sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' "$STATE" | head -n 1)
     PHASE=$(sed -n 's/.*"phase":"\([^"]*\)".*/\1/p' "$STATE" | head -n 1)
     case "$PHASE" in checking|checking\ OneDrive|downloading|creating\ monthly\ snapshot) ACTIVE=1;; *) ACTIVE=;; esac
-    if [ -n "${ACTIVE:-}" ] && { [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; }; then
+    # shellcheck disable=SC2046 # Split the two numeric df fields into $1 and $2.
+    set -- $(df -Pk "$MOUNT" | awk 'NR == 2 { print $4 * 1024, $2 * 1024 }')
+    AVAILABLE=${1:-0}
+    TOTAL=${2:-0}
+    if [ -n "${ACTIVE:-}" ] && [ "$AVAILABLE" -eq 0 ]; then
+        printf '{"phase":"failed","usb_mounted":true,"available_bytes":0,"total_bytes":%s,"error":"USB storage is full; backup stopped before completion"}\n' "$TOTAL"
+    elif [ -n "${ACTIVE:-}" ] && { [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; }; then
         printf '%s\n' '{"phase":"interrupted","usb_mounted":true,"error":"Previous run was interrupted or its state is stale"}'
     else
         cat "$STATE"
