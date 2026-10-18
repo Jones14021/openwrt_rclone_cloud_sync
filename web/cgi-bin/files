@@ -12,14 +12,14 @@ if ! sh "$REPO/mount-check.sh" >/dev/null 2>&1; then
 fi
 case "$ROOT" in current|monthly) ;; *) ROOT=current;; esac
 case "$PATH_PART" in *..*|/*) BAD=1;; *) BAD=;; esac
-case "$DOWNLOAD" in *..*|/*) BAD=1;; esac
+case "$DOWNLOAD" in *..*|/*|*'"'*|*\\*) BAD=1;; esac
 BASE=$REPO/backup/$ROOT
 TARGET=$BASE${PATH_PART:+/$PATH_PART}
 [ -z "${BAD:-}" ] && [ -d "$BASE" ] && [ ! -L "$TARGET" ] || { printf 'Status: 404 Not Found\r\nContent-Type: text/plain\r\n\r\nNot found\n'; exit 0; }
 if [ -n "$DOWNLOAD" ]; then
     FILE=$TARGET/$DOWNLOAD
     [ -f "$FILE" ] && [ ! -L "$FILE" ] || { printf 'Status: 404 Not Found\r\nContent-Type: text/plain\r\n\r\nNot found\n'; exit 0; }
-    printf 'Content-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="download"\r\n\r\n'
+    printf 'Content-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="%s"\r\n\r\n' "$DOWNLOAD"
     cat "$FILE"
     exit 0
 fi

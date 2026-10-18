@@ -5,7 +5,7 @@ umask 077
 
 REPO=$(CDPATH='' && export CDPATH && cd "$(dirname "$0")" && pwd -P)
 MOUNT=${MOUNT:-/tmp/mountd/disk1_part1}
-LISTEN=${WEB_LISTEN:-192.168.5.1:8443}
+LISTEN=${WEB_LISTEN:-192.168.5.1:8666}
 PID=${WEB_PID:-/tmp/onedrive-backup-dashboard.pid}
 export REPO MOUNT
 

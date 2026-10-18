@@ -8,7 +8,7 @@ async function refreshStatus() {
     const status = await (await fetch('/cgi-bin/status', { cache: 'no-store' })).json();
     text('phase', status.phase); text('started', status.started_at ? `${status.started_at} (${elapsed(status.started_at)})` : '-'); text('success', status.last_success_at);
     text('storage', status.usb_mounted ? `${formatBytes(status.available_bytes)} free / ${formatBytes(status.total_bytes)}` : 'Unavailable');
-    text('summary', status.usb_mounted ? `PID ${status.pid || '-'} · updated ${status.updated_at}` : 'USB unavailable');
+    text('summary', status.usb_mounted ? (status.updated_at ? `PID ${status.pid || '-'} · updated ${status.updated_at}` : 'Idle') : 'USB unavailable');
     const error = document.getElementById('error'); error.hidden = !status.error; error.textContent = status.error || '';
   } catch { text('summary', 'Status endpoint unavailable'); }
 }

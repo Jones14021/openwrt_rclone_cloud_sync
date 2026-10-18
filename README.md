@@ -167,17 +167,17 @@ file names, and downloaded backup files. It must not be exposed to WAN or a
 guest network.
 
 Start it on the router's LAN IP. This example uses the configured `192.168.5.1`
-address and port `8443`; replace the address when your LAN uses another IP:
+address and port `8666`; replace the address when your LAN uses another IP:
 
 ```sh
-WEB_LISTEN=192.168.5.1:8443 \
+WEB_LISTEN=192.168.5.1:8666 \
     sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-start.sh
 ```
 
-Open `http://192.168.5.1:8443/` from a device on that LAN. `web-start.sh` uses
+Open `http://192.168.5.1:8666/` from a device on that LAN. `web-start.sh` uses
 that address by default. It binds only to the selected LAN IP, never
 `0.0.0.0`; keep the default GL.iNet guest/WAN isolation in place. Stop it with
-`kill "$(cat /tmp/onedrive-backup-dashboard.pid)"`.
+`sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-stop.sh`.
 
 To start it after boot, add one non-respawning line to `/etc/rc.local` before
 `exit 0`:
@@ -199,9 +199,9 @@ redirection so no output bypasses that cap.
 ## 8. File modes and updates
 
 | Path in the repository | Ext4 mode | Purpose |
-|---|---:|---|
+| --- | ---: | --- |
 | `README.md`, `.gitignore`, `rclone.conf.example` | `0644` | Project text; the example is not a token |
-| `setup.sh`, `backup.sh`, `mount-check.sh` | `0755` | Tracked executable scripts; `sh file.sh` also works without an executable bit |
+| `setup.sh`, `backup.sh`, `mount-check.sh`, `web-start.sh`, `web-stop.sh` | `0755` | Tracked executable scripts; `sh file.sh` also works without an executable bit |
 | `.local/`, `backup/` | `0700` directories | Non-public state and backups |
 | `.local/rclone.conf`, `.local/volume-id` | `0600` | OAuth credentials and USB marker |
 | `backup/current/`, `backup/monthly/` and their files | Restrictive where supported | Backup data; exact modes may vary |
@@ -209,8 +209,8 @@ redirection so no output bypasses that cap.
 On ext4, set script modes in your Git checkout before committing:
 
 ```sh
-chmod 755 setup.sh backup.sh mount-check.sh
-git add --chmod=+x setup.sh backup.sh mount-check.sh
+chmod 755 setup.sh backup.sh mount-check.sh web-start.sh web-stop.sh
+git add --chmod=+x setup.sh backup.sh mount-check.sh web-start.sh web-stop.sh
 git ls-files -s
 ```
 

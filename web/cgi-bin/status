@@ -2,6 +2,8 @@
 set -eu
 REPO=${REPO:-/tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync}
 STATE=/tmp/onedrive-backup/status.json
+MOUNT=${MOUNT:-/tmp/mountd/disk1_part1}
+LAST_SUCCESS=$REPO/.local/last-success.json
 printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n'
 if ! sh "$REPO/mount-check.sh" >/dev/null 2>&1; then
     printf '%s\n' '{"phase":"unavailable","usb_mounted":false,"error":"USB unavailable"}'
@@ -17,5 +19,12 @@ if [ -r "$STATE" ]; then
         cat "$STATE"
     fi
 else
-    printf '%s\n' '{"phase":"idle","usb_mounted":true}'
+    # shellcheck disable=SC2046 # Split the two numeric df fields into $1 and $2.
+    set -- $(df -Pk "$MOUNT" | awk 'NR == 2 { print $4 * 1024, $2 * 1024 }')
+    AVAILABLE=${1:-0}
+    TOTAL=${2:-0}
+    LAST_SUCCESS_AT=
+    [ -r "$LAST_SUCCESS" ] && LAST_SUCCESS_AT=$(sed -n 's/.*"finished_at":"\([^"]*\)".*/\1/p' "$LAST_SUCCESS" | head -n 1)
+    printf '{"phase":"idle","usb_mounted":true,"available_bytes":%s,"total_bytes":%s,"last_success_at":"%s"}\n' \
+        "$AVAILABLE" "$TOTAL" "$LAST_SUCCESS_AT"
 fi
