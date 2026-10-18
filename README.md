@@ -154,43 +154,33 @@ edits configuration, uploads data, or exposes the checkout root. It reads only
 the published job state, the bounded RAM log, and `backup/current/` plus
 `backup/monthly/`.
 
-Install uHTTPd on the router, then create a dashboard-specific credential on
-the USB. Do not reuse the GL.iNet administrator password:
+Install uHTTPd on the router:
 
 ```sh
 opkg update
 opkg install uhttpd
-umask 077
-printf '%s\n' 'dashboard:choose-a-long-unique-password' \
-    > /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/.local/web-auth
-chmod 600 /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/.local/web-auth
 ```
 
-For initial testing, bind only to loopback and use an SSH tunnel from a trusted
-computer:
+The dashboard serves plain HTTP without authentication. It is intended only for
+a trusted LAN where every connected device may read the backup status, logs,
+file names, and downloaded backup files. It must not be exposed to WAN or a
+guest network.
 
-```sh
-sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-start.sh
-ssh -L 8443:127.0.0.1:8443 root@192.168.5.1
-```
-
-Open `http://127.0.0.1:8443/` in the computer's browser. `web-start.sh` uses
-loopback by default and refuses to run without credentials. Stop it with
-`kill "$(cat /tmp/onedrive-backup-dashboard.pid)"`.
-
-For LAN deployment, first create a certificate and key using your router's
-normal TLS procedure. Start with a specific LAN listener and the two paths;
-also add a firewall rule that excludes guest and WAN zones:
+Start it on the router's LAN IP. This example uses the configured `192.168.5.1`
+address and port `8443`; replace the address when your LAN uses another IP:
 
 ```sh
 WEB_LISTEN=192.168.5.1:8443 \
-WEB_CERT=/path/to/cert.pem WEB_KEY=/path/to/key.pem \
     sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-start.sh
 ```
 
-This form serves HTTPS, so use `https://192.168.5.1:8443/`. Do not expose an
-unencrypted dashboard listener beyond loopback. To start it after boot, add one
-non-respawning line to `/etc/rc.local` before `exit 0`:
+Open `http://192.168.5.1:8443/` from a device on that LAN. `web-start.sh` uses
+that address by default. It binds only to the selected LAN IP, never
+`0.0.0.0`; keep the default GL.iNet guest/WAN isolation in place. Stop it with
+`kill "$(cat /tmp/onedrive-backup-dashboard.pid)"`.
+
+To start it after boot, add one non-respawning line to `/etc/rc.local` before
+`exit 0`:
 
 ```sh
 /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/web-start.sh >/tmp/onedrive-dashboard.log 2>&1

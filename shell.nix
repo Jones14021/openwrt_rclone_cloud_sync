@@ -12,7 +12,6 @@ pkgs.mkShellNoCC {
     curl       # dashboard HTTP smoke tests
     jq         # inspect CGI JSON responses in host tests
     nodejs     # JavaScript syntax checks
-    openssl    # generate a local certificate for HTTPS smoke tests
     shellcheck # shell linting
     uhttpd     # run the dashboard locally
   ];
