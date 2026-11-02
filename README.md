@@ -91,9 +91,9 @@ sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/setup.sh router
 sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh dry-run
 ```
 
-`setup.sh router` verifies the mount, checks that Git and rclone are installed, and lists OneDrive. **It does not create, modify, enable, or restart a cron job.**
+`setup.sh router` verifies the mount, checks that Git and rclone are installed, and lists OneDrive. **It does not configure or enable a cron or startup job.**
 
-It also checks `/etc/crontabs/root` for the *exact* cron entry shown below. If present, it says so. If absent, it prints the entry you need to add. This check is informational: an absent entry does not prevent manual backup testing.
+It also checks `/etc/crontabs/root` for the *exact* cron entry shown below and `/etc/rc.local` for the documented startup command. If neither is found, it suggests configuration. These checks are informational: they do not prove a job will run, and an absent entry does not prevent manual backup testing.
 
 ## 5. Choose when to run
 
@@ -122,7 +122,7 @@ If you edited the crontab but the task is not taking effect, restart cron manual
 /etc/init.d/cron restart
 ```
 
-The check in `setup.sh router` requires the **exact** line above. If you intentionally change the schedule, command, or log path, it will say the expected entry is missing even if your alternative is valid. It will never replace your entry or add a duplicate.
+The cron check in `setup.sh router` requires the **exact** line above. If you intentionally change the schedule or command, it may not recognize your entry even if it is valid. It will never replace your entry or add a duplicate.
 
 A powered-off router misses its scheduled run. When it comes back, inspect the log and run a backup manually if needed, or use the startup option below instead.
 
@@ -151,7 +151,7 @@ This option suits a router powered on specifically for backups. Remove the daily
 
 This runs in the background so boot can continue. It checks the USB and OneDrive up to 60 times, waiting 10 seconds between attempts; network timeouts can make the total wait longer than 10 minutes. Ensure the router has internet access and its clock is correctly synchronized with NTP. If readiness never succeeds, inspect `/tmp/onedrive-boot.log`; it does not keep retrying indefinitely or start a backup when the USB is inserted later. Once started, inspect `/tmp/onedrive-usb-backup.log` and the dashboard for the backup result. These logs are lost on reboot.
 
-Leave the router powered on until the backup reports completion, including the monthly snapshot, then follow the safe removal steps below. `setup.sh router` still reports the daily cron entry as missing when this startup option is used; that check does not recognize startup jobs.
+Leave the router powered on until the backup reports completion, including the monthly snapshot, then follow the safe removal steps below. `setup.sh router` recognizes the documented startup command before `exit 0`, but does not validate the rest of the startup script or guarantee that it will run.
 
 ## 6. First backup and normal operation
 

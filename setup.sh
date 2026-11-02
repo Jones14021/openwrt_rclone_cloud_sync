@@ -241,12 +241,29 @@ case "${1:-}" in
         echo 'No test file was saved to USB.'
 
         LINE='15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run'
+        FOUND_SCHEDULE=false
 
         if [ -r /etc/crontabs/root ] &&
            grep -Fqx "$LINE" /etc/crontabs/root; then
             echo 'Scheduled Tasks: expected cron entry found.'
-        else
-            echo 'ACTION REQUIRED: Add this line manually in LuCI → System → Scheduled Tasks:' >&2
+            FOUND_SCHEDULE=true
+        fi
+        if [ -r /etc/rc.local ] && awk -v repo='/tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync' '
+            {
+                line = $0
+                sub(/^[[:space:]]*/, "", line)
+                sub(/[[:space:]]*$/, "", line)
+                if (line == "exit 0") exit
+                if (line == "REPO=" repo) found_repo = 1
+                if (found_repo && line == "sh \"$REPO/backup.sh\" run") found_command = 1
+            }
+            END { exit !found_command }
+        ' /etc/rc.local; then
+            echo 'Local Startup: documented backup command found; verify the startup configuration.'
+            FOUND_SCHEDULE=true
+        fi
+        if [ "$FOUND_SCHEDULE" = false ]; then
+            echo 'ACTION REQUIRED: Configure a startup backup or add this line manually in LuCI → System → Scheduled Tasks:' >&2
             printf '%s\n' "$LINE" >&2
         fi
 
