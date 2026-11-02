@@ -113,11 +113,13 @@ monitored() {
 if [ "$ACTION" = dry-run ]; then
     state_update downloading
     monitored rclone --config "$CONF" sync onedrive: "$DEST" --dry-run --transfers 1 --checkers 2 \
-        --buffer-size 8M --multi-thread-streams 1 --modify-window 2s --log-level INFO
+        --buffer-size 8M --multi-thread-streams 1 --modify-window 2s --log-level INFO \
+        --exclude '/Persönlicher Tresor/**' --exclude '/Personal Vault/**'
 else
     state_update downloading
     monitored rclone --config "$CONF" sync onedrive: "$DEST" --delete-after --transfers 1 --checkers 2 \
-        --buffer-size 8M --multi-thread-streams 1 --modify-window 2s --log-level INFO
+        --buffer-size 8M --multi-thread-streams 1 --modify-window 2s --log-level INFO \
+        --exclude '/Persönlicher Tresor/**' --exclude '/Personal Vault/**'
 fi
 [ "$ACTION" = run ] || { state_update completed; log 'Dry run complete'; exit 0; }
 MONTH=$(date +%Y-%m)

@@ -95,7 +95,11 @@ sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh dry-run
 
 It also checks `/etc/crontabs/root` for the *exact* cron entry shown below. If present, it says so. If absent, it prints the entry you need to add. This check is informational: an absent entry does not prevent manual backup testing.
 
-## 5. Add the schedule manually
+## 5. Choose when to run
+
+Choose either a daily schedule or a startup run. The scripts do not configure either automatically.
+
+### Daily schedule
 
 In the GL admin interface, open **Advanced Settings → LuCI → System → Scheduled Tasks**. Add this single line for a daily run at 03:15, and save it:
 
@@ -120,7 +124,34 @@ If you edited the crontab but the task is not taking effect, restart cron manual
 
 The check in `setup.sh router` requires the **exact** line above. If you intentionally change the schedule, command, or log path, it will say the expected entry is missing even if your alternative is valid. It will never replace your entry or add a duplicate.
 
-A powered-off router misses its scheduled run. When it comes back, inspect the log and run a backup manually if needed.
+A powered-off router misses its scheduled run. When it comes back, inspect the log and run a backup manually if needed, or use the startup option below instead.
+
+### Run at startup
+
+This option suits a router powered on specifically for backups. Remove the daily cron entry above if you want startup runs only. In LuCI, open **System → Startup → Local Startup** and insert the following before the existing `exit 0` line:
+
+```sh
+(
+    REPO=/tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync
+    attempt=0
+    while [ "$attempt" -lt 60 ]; do
+        if sh "$REPO/mount-check.sh" >/dev/null 2>&1 && \
+            "$REPO/.local/bin/rclone" --config "$REPO/.local/rclone.conf" \
+                lsf --max-depth 1 onedrive: --contimeout 10s --timeout 20s \
+                --retries 1 --low-level-retries 1 >/dev/null 2>&1; then
+            sh "$REPO/backup.sh" run
+            exit $?
+        fi
+        attempt=$((attempt + 1))
+        sleep 10
+    done
+    echo 'USB or OneDrive was not ready; startup backup not started' >&2
+) > /tmp/onedrive-boot.log 2>&1 &
+```
+
+This runs in the background so boot can continue. It checks the USB and OneDrive up to 60 times, waiting 10 seconds between attempts; network timeouts can make the total wait longer than 10 minutes. Ensure the router has internet access and its clock is correctly synchronized with NTP. If readiness never succeeds, inspect `/tmp/onedrive-boot.log`; it does not keep retrying indefinitely or start a backup when the USB is inserted later. Once started, inspect `/tmp/onedrive-usb-backup.log` and the dashboard for the backup result. These logs are lost on reboot.
+
+Leave the router powered on until the backup reports completion, including the monthly snapshot, then follow the safe removal steps below. `setup.sh router` still reports the daily cron entry as missing when this startup option is used; that check does not recognize startup jobs.
 
 ## 6. First backup and normal operation
 
@@ -146,6 +177,8 @@ The log is in `/tmp`—RAM, lost on reboot—rather than redirected to a path on
 Inspect `backup/current/` and `backup/monthly/YYYY-MM/` on the USB. The first OneDrive download is full; subsequent syncs transfer changed files. On the first successful backup each month, the script makes an independent full USB-to-USB snapshot. Only after publishing the new snapshot does it remove the previous month.
 
 A remote reported as empty causes the backup to abort.
+
+The sync excludes both root-level `Persönlicher Tresor/` and `Personal Vault/` because rclone cannot reliably list OneDrive Personal Vault. This applies to dry runs and real backups. **Vault contents are not backed up**; back them up separately using a supported OneDrive client or the OneDrive website, and verify those copies. Existing excluded files on the USB are not deleted by these filters. Other localized vault names must be added to both sync commands in `backup.sh`.
 
 ## 7. Read-only backup dashboard
 
@@ -227,7 +260,7 @@ git status --short
 git pull --ff-only
 ```
 
-The next cron run uses the updated USB scripts; no project-file installation is required. Never put `.local/` or `backup/` into version control. On FAT32, `git config core.filemode false` in the checkout can quiet spurious mode changes. Pull only trusted changes: these scripts run as router root.
+The next scheduled or startup run uses the updated USB scripts; no project-file installation is required. Never put `.local/` or `backup/` into version control. On FAT32, `git config core.filemode false` in the checkout can quiet spurious mode changes. Pull only trusted changes: these scripts run as router root.
 
 If updating the USB on Linux instead, safely eject it before reinserting it into the router.
 
