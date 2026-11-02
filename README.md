@@ -225,6 +225,15 @@ completion is retained on USB at `.local/last-success.json`. The RAM log is
 capped at 128 KiB by `backup.sh`; use the cron command below without output
 redirection so no output bypasses that cap.
 
+When a monthly snapshot is still needed, the dashboard compares free USB space
+with the allocated size of `backup/current/` and warns if the copy is unlikely
+to fit. The estimate is checked while the dashboard is open, every five minutes
+and after an active backup ends. It is not recalculated during an active backup
+to avoid competing for USB access. An unavailable estimate is not a guarantee
+of sufficient space.
+The estimate can take time and does not account for future changes or all
+filesystem overhead, so leave additional free space.
+
 ```cron
 15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run
 ```
