@@ -124,17 +124,17 @@ fi
 [ "$ACTION" = run ] || { state_update completed; log 'Dry run complete'; exit 0; }
 MONTH=$(date +%Y-%m)
 SNAP=$MONTHLY/$MONTH
-TMP=$MONTHLY/.new-$MONTH
+SNAP_TMP=$MONTHLY/.new-$MONTH
 if [ ! -d "$SNAP" ]; then
     [ ! -e "$SNAP" ] || fail 'Snapshot path occupied by non-directory'
-    [ ! -e "$TMP" ] || rm -rf "$TMP"
+    [ ! -e "$SNAP_TMP" ] || rm -rf "$SNAP_TMP"
     check || fail 'USB removed before snapshot'
-    mkdir "$TMP" || fail 'Cannot create monthly staging directory'
+    mkdir "$SNAP_TMP" || fail 'Cannot create monthly staging directory'
     state_update 'creating monthly snapshot'
     # cp -R avoids hardlinks: frozen monthly is independent of current.
-    monitored cp -R "$DEST/." "$TMP/" || fail 'Monthly copy incomplete; previous month retained'
+    monitored cp -R "$DEST/." "$SNAP_TMP/" || fail 'Monthly copy incomplete; previous month retained'
     check || fail 'USB removed during monthly copy; previous month retained'
-    mv "$TMP" "$SNAP" || fail 'Cannot publish monthly snapshot'
+    mv "$SNAP_TMP" "$SNAP" || fail 'Cannot publish monthly snapshot'
     log "Published $SNAP"
 fi
 check || fail 'USB removed before rotation cleanup'
