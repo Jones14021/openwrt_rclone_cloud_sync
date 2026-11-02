@@ -22,13 +22,13 @@ if [ "${QUERY_STRING:-}" = capacity ]; then
                 ;;
         esac
     fi
-    if [ -d "$REPO/backup/monthly/$(date +%Y-%m)" ]; then
-        printf '%s\n' '{"available":true,"snapshot_needed":false}'
-    elif [ -d "$REPO/backup/current" ] && SIZE=$(du -sk "$REPO/backup/current"); then
+    if [ -d "$REPO/backup/current" ] && SIZE=$(du -sk "$REPO/backup/current"); then
         SIZE=${SIZE%%[!0-9]*}
+        SNAPSHOT_NEEDED=true
+        [ ! -d "$REPO/backup/monthly/$(date +%Y-%m)" ] || SNAPSHOT_NEEDED=false
         case "$SIZE" in
             '') printf '%s\n' '{"available":false}' ;;
-            *) printf '{"available":true,"snapshot_needed":true,"required_bytes":%s}\n' "$(awk -v size="$SIZE" 'BEGIN { printf "%.0f", size * 1024 }')" ;;
+            *) printf '{"available":true,"snapshot_needed":%s,"required_bytes":%s}\n' "$SNAPSHOT_NEEDED" "$(awk -v size="$SIZE" 'BEGIN { printf "%.0f", size * 1024 }')" ;;
         esac
     else
         printf '%s\n' '{"available":false}'

@@ -1,13 +1,13 @@
 const state = { root: 'current', path: '', status: null, capacity: null, capacityPending: false };
 const text = (id, value) => { document.getElementById(id).textContent = value || '-'; };
 const formatBytes = value => value === undefined ? '-' : `${(value / 1024 / 1024 / 1024).toFixed(1)} GiB`;
-const elapsed = timestamp => { const seconds = Math.max(0, Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000)); return Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : '-'; };
+const elapsed = (timestamp, end) => { const seconds = Math.max(0, Math.floor((end - new Date(timestamp).getTime()) / 1000)); return Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : '-'; };
 const activePhase = phase => ['checking', 'checking OneDrive', 'downloading', 'creating monthly snapshot'].includes(phase);
 
 function renderCapacity() {
   const warning = document.getElementById('capacity-warning');
   const { status, capacity } = state;
-  const insufficient = status?.usb_mounted && status.phase !== 'creating monthly snapshot' && capacity?.available && capacity.snapshot_needed && Number.isFinite(status.available_bytes) && capacity.required_bytes > status.available_bytes;
+  const insufficient = status?.usb_mounted && status.phase !== 'creating monthly snapshot' && capacity?.available && Number.isFinite(status.available_bytes) && capacity.required_bytes > status.available_bytes;
   const unavailable = status?.usb_mounted && !capacity?.available && (activePhase(status.phase) || (!state.capacityPending && capacity !== null));
   warning.hidden = !insufficient && !unavailable;
   warning.textContent = insufficient ? `Next monthly snapshot needs approximately ${formatBytes(capacity.required_bytes)}; ${formatBytes(status.available_bytes)} is free. Allow extra space for changes.` : unavailable ? 'Monthly snapshot space estimate is unavailable.' : '';
@@ -26,7 +26,7 @@ async function refreshStatus() {
     const status = await (await fetch('/cgi-bin/status', { cache: 'no-store' })).json();
     const previous = state.status; state.status = status;
     if (!status.usb_mounted) state.capacity = null;
-    text('phase', status.phase); text('started', status.started_at ? `${status.started_at} (${elapsed(status.started_at)})` : '-'); text('success', status.last_success_at);
+    text('phase', status.phase); text('started', status.started_at ? `${status.started_at} (${elapsed(status.started_at, activePhase(status.phase) ? Date.now() : status.updated_at ? new Date(status.updated_at).getTime() : NaN)})` : '-'); text('success', status.last_success_at);
     text('storage', status.usb_mounted ? `${formatBytes(status.available_bytes)} free / ${formatBytes(status.total_bytes)}` : 'Unavailable');
     text('summary', status.usb_mounted ? (status.updated_at ? `PID ${status.pid || '-'} · updated ${status.updated_at}` : 'Idle') : 'USB unavailable');
     const error = document.getElementById('error'); error.hidden = !status.error; error.textContent = status.error || '';
