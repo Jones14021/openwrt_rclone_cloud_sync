@@ -44,6 +44,36 @@ function testCapacityEndpoint() {
   assert.equal(run().available, false);
 }
 
+async function testWebStart() {
+  const bin = path.join(fixture, 'bin');
+  const argsFile = path.join(fixture, 'uhttpd.args');
+  fs.mkdirSync(bin);
+  fs.mkdirSync(path.join(fixture, 'web'));
+  fs.copyFileSync(path.join(root, 'web', 'index.html'), path.join(fixture, 'web', 'index.html'));
+  fs.copyFileSync(path.join(root, 'web-start.sh'), path.join(fixture, 'web-start.sh'));
+  fs.writeFileSync(path.join(bin, 'uhttpd'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$FIXTURE/uhttpd.args.tmp"\nmv "$FIXTURE/uhttpd.args.tmp" "$FIXTURE/uhttpd.args"\n', { mode: 0o755 });
+
+  let resolveWritten;
+  const written = new Promise(resolve => { resolveWritten = resolve; });
+  const watcher = fs.watch(fixture, (event, name) => { if (name === 'uhttpd.args') resolveWritten(); });
+  const timer = setTimeout(() => resolveWritten(), 5000);
+  try {
+    const result = spawnSync('sh', [path.join(fixture, 'web-start.sh')], {
+      encoding: 'utf8',
+      stdio: 'ignore',
+      env: { ...process.env, FIXTURE: fixture, MOUNT: fixture, MOUNT_CHECK_TEST: '1', WEB_PID: path.join(fixture, 'dashboard.pid'), PATH: `${bin}:${process.env.PATH}` },
+    });
+    assert.equal(result.status, 0, 'dashboard startup failed');
+    if (!fs.existsSync(argsFile)) await written;
+    const args = fs.readFileSync(argsFile, 'utf8').trim().split('\n');
+    assert.equal(args[args.indexOf('-t') + 1], '300');
+    assert.equal(args[args.indexOf('-T') + 1], '300');
+  } finally {
+    clearTimeout(timer);
+    watcher.close();
+  }
+}
+
 async function testDashboard() {
   const elements = {};
   assert.match(fs.readFileSync(path.join(root, 'web', 'index.html'), 'utf8'), /id="capacity-warning"[^>]*>Checking monthly snapshot space/);
@@ -112,6 +142,7 @@ async function testDashboard() {
 (async () => {
   try {
     testCapacityEndpoint();
+    await testWebStart();
     await testDashboard();
     console.log('Dashboard tests passed');
   } finally {

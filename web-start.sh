@@ -22,7 +22,7 @@ if [ -r "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
 fi
 rm -f "$PID"
 
-set -- -f -p "$LISTEN" -h "$REPO/web" -x /cgi-bin -S -D
+set -- -f -p "$LISTEN" -h "$REPO/web" -x /cgi-bin -S -D -t 300 -T 300
 
 uhttpd "$@" &
 echo "$!" > "$PID"

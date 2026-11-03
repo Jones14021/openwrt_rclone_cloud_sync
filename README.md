@@ -233,6 +233,8 @@ It is not recalculated during an active backup to avoid competing for USB access
 An unavailable estimate is not a guarantee of sufficient space.
 The estimate can take time and does not account for future changes or all
 filesystem overhead, so leave additional free space.
+The dashboard server allows five minutes for CGI scripts and network requests;
+restart it after updating `web-start.sh` for these settings to take effect.
 
 ```cron
 15 3 * * * /bin/sh /tmp/mountd/disk1_part1/openwrt_rclone_cloud_sync/backup.sh run
