@@ -46,6 +46,7 @@ function testCapacityEndpoint() {
 
 async function testDashboard() {
   const elements = {};
+  assert.match(fs.readFileSync(path.join(root, 'web', 'index.html'), 'utf8'), /id="capacity-warning"[^>]*>Checking monthly snapshot space/);
   let now = Date.parse('2026-11-02T21:00:00+0100');
   const TestDate = class extends Date { static now() { return now; } };
   let status = { phase: 'completed', started_at: '2026-11-02T18:35:36+0100', updated_at: '2026-11-02T19:29:00+0100', usb_mounted: false };
@@ -83,6 +84,29 @@ async function testDashboard() {
   assert.equal(elements['capacity-warning'].hidden, true);
   run('state.status.available_bytes = 1; state.status.phase = "creating monthly snapshot"; renderCapacity()');
   assert.equal(elements['capacity-warning'].hidden, true);
+
+  let finishCapacity;
+  context.fetch = () => new Promise(resolve => { finishCapacity = resolve; });
+  run('state.status = { usb_mounted: true, phase: "idle", available_bytes: 57.4 * 1024 ** 3 }; state.capacity = null');
+  let pending = run('refreshCapacity()');
+  assert.equal(elements['capacity-warning'].hidden, false);
+  assert.match(elements['capacity-warning'].textContent, /Checking monthly snapshot space/);
+  finishCapacity({ json: async () => ({ available: true, required_bytes: 88.4 * 1024 ** 3 }) });
+  await pending;
+  assert.match(elements['capacity-warning'].textContent, /88\.4 GiB.*57\.4 GiB/);
+
+  pending = run('refreshCapacity()');
+  assert.match(elements['capacity-warning'].textContent, /Checking monthly snapshot space/);
+  finishCapacity({ json: async () => ({ available: true, required_bytes: 40 * 1024 ** 3 }) });
+  await pending;
+  assert.equal(elements['capacity-warning'].hidden, true);
+
+  context.fetch = async () => { throw new Error('unavailable'); };
+  await run('refreshCapacity()');
+  assert.match(elements['capacity-warning'].textContent, /estimate is unavailable/);
+  run('state.status = null');
+  await run('refreshStatus()');
+  assert.match(elements['capacity-warning'].textContent, /estimate is unavailable/);
 }
 
 (async () => {

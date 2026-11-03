@@ -7,15 +7,17 @@ const activePhase = phase => ['checking', 'checking OneDrive', 'downloading', 'c
 function renderCapacity() {
   const warning = document.getElementById('capacity-warning');
   const { status, capacity } = state;
+  const checking = status?.usb_mounted && state.capacityPending;
   const insufficient = status?.usb_mounted && status.phase !== 'creating monthly snapshot' && capacity?.available && Number.isFinite(status.available_bytes) && capacity.required_bytes > status.available_bytes;
   const unavailable = status?.usb_mounted && !capacity?.available && (activePhase(status.phase) || (!state.capacityPending && capacity !== null));
-  warning.hidden = !insufficient && !unavailable;
-  warning.textContent = insufficient ? `Next monthly snapshot needs approximately ${formatBytes(capacity.required_bytes)}; ${formatBytes(status.available_bytes)} is free. Allow extra space for changes.` : unavailable ? 'Monthly snapshot space estimate is unavailable.' : '';
+  warning.hidden = !checking && !insufficient && !unavailable;
+  warning.textContent = checking ? 'Checking monthly snapshot space...' : insufficient ? `Next monthly snapshot needs approximately ${formatBytes(capacity.required_bytes)}; ${formatBytes(status.available_bytes)} is free. Allow extra space for changes.` : unavailable ? 'Monthly snapshot space estimate is unavailable.' : '';
 }
 
 async function refreshCapacity() {
   if (state.capacityPending || !state.status?.usb_mounted || activePhase(state.status.phase)) return;
   state.capacityPending = true;
+  renderCapacity();
   try { state.capacity = await (await fetch('/cgi-bin/status?capacity', { cache: 'no-store' })).json(); }
   catch { state.capacity = { available: false }; }
   finally { state.capacityPending = false; renderCapacity(); }
@@ -32,7 +34,7 @@ async function refreshStatus() {
     const error = document.getElementById('error'); error.hidden = !status.error; error.textContent = status.error || '';
     renderCapacity();
     if (!previous || previous.usb_mounted !== status.usb_mounted || (activePhase(previous.phase) && !activePhase(status.phase))) refreshCapacity();
-  } catch { text('summary', 'Status endpoint unavailable'); }
+  } catch { text('summary', 'Status endpoint unavailable'); if (!state.status) { const warning = document.getElementById('capacity-warning'); warning.hidden = false; warning.textContent = 'Monthly snapshot space estimate is unavailable.'; } }
 }
 async function refreshLog() { try { document.getElementById('log').textContent = await (await fetch('/cgi-bin/logs', { cache: 'no-store' })).text(); } catch { document.getElementById('log').textContent = 'Log endpoint unavailable.'; } }
 function query() { return `root=${encodeURIComponent(state.root)}&path=${encodeURIComponent(state.path)}`; }
